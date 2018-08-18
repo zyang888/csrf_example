@@ -1,3 +1,4 @@
+import random
 import os
 import base64
 
@@ -9,14 +10,19 @@ app = Flask(__name__)
 @app.route('/', methods=['GET', 'POST'])
 def home():
 
+    if 'csrf_token' not in session:
+        session['csrf_token'] = str(random.randint(10000000, 99999999))
+
     if request.method == 'POST':
-        g = Grade(
-            student=request.form['student'],
-            assignment=request.form['assignment'],
-            grade=request.form['grade'],
-        )
-        #print("(" + request.form['grade'] + ")")
-        g.save()
+        # Only save the grade if the form submission includes a CSRF token,
+        # and it matches the token in the session.
+        if request.form.get('csrf_token', None) == session['csrf_token']:
+            g = Grade(
+                student=request.form['student'],
+                assignment=request.form['assignment'],
+                grade=request.form['grade'],
+                )
+            g.save()
 
     body = """
 <html>
@@ -34,12 +40,14 @@ def home():
     <label for="grade">Grade</label>
     <input type="text" name="grade"><br>
 
+    <input type="hidden" name="csrf_token" value="{}">   <!-- Include the CSRF token in the form -->
+
     <input type="submit" value="Submit">
 </form>
 
 <h2>Existing Grades</h2>
-"""
-    
+""".format(session['csrf_token'])   # <--
+
     for g in Grade.select():
         body += """
 <div class="grade">
@@ -51,6 +59,7 @@ def home():
 
 
 if __name__ == "__main__":
+    session = dict()
     port = int(os.environ.get("PORT", 6779))
     app.run(host='0.0.0.0', port=port)
 
